@@ -2,13 +2,20 @@ package com.example.musicplayer2;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.Context;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+
 public class MainActivity extends AppCompatActivity {
+
+    private MediaPlayer mMediaPlayer;
+    private MediaPlayer m2MediaPlayer;
+    private AudioManager mAudioManager;
 
     private MediaPlayer.OnCompletionListener mCompletionListener = new MediaPlayer.OnCompletionListener() {
         @Override
@@ -17,13 +24,28 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private MediaPlayer mMediaPlayer;
-    private MediaPlayer m2MediaPlayer;
+
+    AudioManager.OnAudioFocusChangeListener mOnAudioFocusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int i) {
+            if(i == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT || i == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK){
+                mMediaPlayer.pause();
+                mMediaPlayer.seekTo(0);
+            }else if(i == AudioManager.AUDIOFOCUS_GAIN){
+                mMediaPlayer.start();
+            }else if(i == AudioManager.AUDIOFOCUS_LOSS){
+                releaseMediaPlayer();
+            }
+        }
+    };
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        mAudioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         mMediaPlayer = MediaPlayer.create(MainActivity.this, R.raw.ritvizmusic);
         //play button
@@ -33,8 +55,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Toast.makeText(MainActivity.this, "Play", Toast.LENGTH_SHORT).show();
-                mMediaPlayer.start();
-                mMediaPlayer.setOnCompletionListener(mCompletionListener);
+
+                int result = mAudioManager.requestAudioFocus(mOnAudioFocusChangeListener, AudioManager.STREAM_MUSIC,
+                        AudioManager.AUDIOFOCUS_GAIN);
+                if(result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+
+                    mMediaPlayer.start();
+                    mMediaPlayer.setOnCompletionListener(mCompletionListener);
+                }
             }
         });
 
@@ -48,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
                 mMediaPlayer.pause();
             }
         });
-        
+
         m2MediaPlayer = MediaPlayer.create(MainActivity.this, R.raw.song2);
         //play2
         Button playButton2 = (Button) findViewById(R.id.play_button_2);
@@ -74,6 +102,12 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    protected void onStop() {
+        super.onStop();
+        releaseMediaPlayer();
+    }
+
     /**
      * Clean up the media player by releasing its resources.
      */
@@ -86,8 +120,10 @@ public class MainActivity extends AppCompatActivity {
 
             // Set the media player back to null. For our code, we've decided that
             // setting the media player to null is an easy way to tell that the media player
-            // is not configured to play an audio file at the moment.
+            // is not configured to play. an audio file at the moment.
             mMediaPlayer = null;
+
+            mAudioManager.abandonAudioFocus(mOnAudioFocusChangeListener);
         }
     }
 }
